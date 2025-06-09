@@ -153,21 +153,6 @@ def show_ticket():
     query = "SELECT person_name, bk_moviename, theaterno, showtime, seat_type, no_of_seat, booking_id FROM bookingdts WHERE person_name = %s"
     mycursor.execute(query, (name,))
     result = mycursor.fetchall()
-
-    '''if result:
-        print("\nYour Ticket Details:")
-        print("-----------------------------------------------")
-        for row in result:
-            print(f"Name: {row[0]}")
-            print(f"Movie: {row[1]}")
-            print(f"Theater No: {row[2]}")
-            print(f"Show Time: {row[3]}")
-            print(f"Seat Type: {row[4]}")
-            print(f"No. of Seats: {row[5]}")
-            print(f"Booking ID: {row[6]}")
-            print("-----------------------------------------------")
-    else:
-        print("No booking found with that name.")'''
     
     for row in result:
         data = (
