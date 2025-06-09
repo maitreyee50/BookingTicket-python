@@ -154,7 +154,7 @@ def show_ticket():
     mycursor.execute(query, (name,))
     result = mycursor.fetchall()
 
-    if result:
+    '''if result:
         print("\nYour Ticket Details:")
         print("-----------------------------------------------")
         for row in result:
@@ -167,7 +167,21 @@ def show_ticket():
             print(f"Booking ID: {row[6]}")
             print("-----------------------------------------------")
     else:
-        print("No booking found with that name.")
+        print("No booking found with that name.")'''
+    
+    for row in result:
+        data = (
+    f"Name: {row[0]}\n"
+    f"Movie: {row[1]}\n"
+    f"Theater No: {row[2]}\n"
+    f"Show time: {row[3]}\n"
+    f"Seat Type: {row[4]}\n"
+    f"No. of Seats: {row[5]}\n"
+    f"Booking ID: {row[6]}"
+)
+
+        qr_image = qrcode.make(data)
+        qr_image.show()
 
 while True:
     print("1. Show all running movies.")
