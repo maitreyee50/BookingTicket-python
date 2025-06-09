@@ -1,4 +1,8 @@
 import pymysql as py
+from datetime import date
+import random
+import qrcode
+
 
 mydb = py.connect(
     host="localhost",
@@ -9,23 +13,53 @@ mydb = py.connect(
 
 mycursor = mydb.cursor()
 
-def show_running_movies():
-    #query = "SELECT movie_name, movie_lang, theater_no, movie_time FROM movies"
-    query="SELECT m.movie_name, m.movie_lang, m.theater_no, m.movie_time, s.gold_price, s.platinum_price FROM movies m JOIN seat_capacity s ON m.theater_no = s.theater_no"
+def generate_unique_booking_id():
+    while True:
+        booking_id = random.randint(1000000, 9999999)
+        mycursor.execute("SELECT COUNT(*) FROM bookingdts WHERE booking_id = %s", (booking_id,))
+        if mycursor.fetchone()[0] == 0:
+            return booking_id
 
+def show_running_movies():
+    query = """
+    SELECT m.movie_name, m.movie_lang, m.theater_no, m.movie_time, 
+           s.gold_price, s.platinum_price 
+    FROM movies m 
+    JOIN seat_capacity s ON m.theater_no = s.theater_no
+    """
     mycursor.execute(query)
     myresult = mycursor.fetchall()
-    
+
     print(f"{'Movie Name':<25} {'Language':<15} {'Theater No':<15} {'Show Time':<15} {'Gold Price':<20} {'Platinum Price':<20}")
     print("-" * 110)
     for row in myresult:
-        movie_name, movie_lang, theater_no, movie_time, gold_price,platinum_price = row
+        movie_name, movie_lang, theater_no, movie_time, gold_price, platinum_price = row
         print(f"{movie_name:<25} {movie_lang:<15} {theater_no:<15} {movie_time:<15} {gold_price:<20} {platinum_price:<20}")
     print()
 
+def payment(amount):
+    upi_id = "roises14@okhdfcbank"  
+    payee_name = "Maitreyee Saha"
+    rs = amount  # Default amount in INR
+
+
+    upi_url = (
+        f"upi://pay?pa={upi_id}&pn={payee_name}"
+        f"&am={rs}&cu=INR"
+    )
+
+
+    qr = qrcode.make(upi_url)
+    qr.show()
+
+
+
+
+
 def book_movie_tickets():
-    total_cost=0
+    total_cost = 0
     seat_capacity_bool = True
+
     name = input("Enter your name: ").strip()
     moviename = input("Enter movie name: ").strip()
     seatType = input("Enter the type of seat you would like (gold/platinum): ").strip().lower()
@@ -50,9 +84,8 @@ def book_movie_tickets():
         return
 
     movie_name, theater_no, movie_time = myresult
-    
-    price_query = f"SELECT gold_price, platinum_price FROM seat_capacity WHERE theater_no = %s"
-   
+
+    price_query = "SELECT gold_price, platinum_price FROM seat_capacity WHERE theater_no = %s"
     mycursor.execute(price_query, (theater_no,))
     price_result = mycursor.fetchone()
 
@@ -69,8 +102,6 @@ def book_movie_tickets():
         print(f"Price per Platinum seat: ₹{platinum_price}")
         total_cost = platinum_price * noSeats
 
-    
-    
     seat_check_query = "SELECT left_gold, left_platinum FROM seat_capacity WHERE theater_no = %s"
     mycursor.execute(seat_check_query, (theater_no,))
     seat_availability = mycursor.fetchone()
@@ -87,12 +118,18 @@ def book_movie_tickets():
     elif seatType == 'platinum' and noSeats > left_platinum:
         print(f"Only {left_platinum} platinum seats are available.")
         seat_capacity_bool = False
-        
-    
-    
-    if seat_capacity_bool == True:
-        insertquery = "INSERT INTO bookingdts (person_name, bk_moviename, theaterno, showtime, seat_type, no_of_seat,payments) VALUES (%s, %s, %s, %s, %s, %s, %s)"
-        values = (name, moviename, theater_no, movie_time, seatType, noSeats,total_cost)
+
+    today = date.today()
+
+    if seat_capacity_bool:
+        booking_id = generate_unique_booking_id()
+
+        insertquery = """
+        INSERT INTO bookingdts 
+        (person_name, bk_moviename, theaterno, showtime, seat_type, no_of_seat, payments, date_time, booking_id) 
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+        """
+        values = (name, moviename, theater_no, movie_time, seatType, noSeats, total_cost, today, booking_id)
         mycursor.execute(insertquery, values)
 
         if seatType == "gold":
@@ -103,18 +140,44 @@ def book_movie_tickets():
             mycursor.execute(update_seat_query, (noSeats, theater_no))
 
         mydb.commit()
-        print("Ticket booked and seat count updated successfully!\n")
-    
+        
+        print(f"Ticket booked successfully! Your Booking ID is: {booking_id} , Now pay your amount\n")
+        payment(total_cost)
+    else:
+        print("Booking failed due to insufficient seats.\n")
+        
 
-    
+
+def show_ticket():
+    name = input("Enter your name: ")
+    query = "SELECT person_name, bk_moviename, theaterno, showtime, seat_type, no_of_seat, booking_id FROM bookingdts WHERE person_name = %s"
+    mycursor.execute(query, (name,))
+    result = mycursor.fetchall()
+
+    if result:
+        print("\nYour Ticket Details:")
+        print("-----------------------------------------------")
+        for row in result:
+            print(f"Name: {row[0]}")
+            print(f"Movie: {row[1]}")
+            print(f"Theater No: {row[2]}")
+            print(f"Show Time: {row[3]}")
+            print(f"Seat Type: {row[4]}")
+            print(f"No. of Seats: {row[5]}")
+            print(f"Booking ID: {row[6]}")
+            print("-----------------------------------------------")
+    else:
+        print("No booking found with that name.")
+
 while True:
     print("1. Show all running movies.")
     print("2. Book movie tickets.")
-    print("3. Exit")
+    print("3. Show my ticket.")
+    print("4. Exit")
     try:
         main_menu_choice = int(input("Enter your choice: ").strip())
     except ValueError:
-        print("Invalid input. Please enter a number from 1 to 3.\n")
+        print("Invalid input. Please enter a number from 1 to 4.\n")
         continue
 
     if main_menu_choice == 1:
@@ -122,7 +185,9 @@ while True:
     elif main_menu_choice == 2:
         book_movie_tickets()
     elif main_menu_choice == 3:
+        show_ticket()
+    elif main_menu_choice == 4:
         print("Thank you for using BookMyTicket!")
         break
     else:
-        print("Invalid choice. Please enter a number from 1 to 3.\n")
+        print("Invalid choice. Please enter a number from 1 to 4.\n")
